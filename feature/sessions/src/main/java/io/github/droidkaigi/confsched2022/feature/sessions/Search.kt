@@ -9,22 +9,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.BottomSheetScaffold
 import androidx.compose.material.BottomSheetValue
@@ -32,11 +28,15 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.IconButton
 import androidx.compose.material.rememberBottomSheetScaffoldState
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +49,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -158,6 +159,7 @@ fun SearchRoot(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchScreen(
     uiModel: SearchUiModel,
@@ -172,22 +174,23 @@ private fun SearchScreen(
     val searchWord = rememberSaveable { mutableStateOf("") }
     KaigiScaffold(
         modifier = modifier,
-        topBar = {},
+        topBar = {
+            if (uiModel.state is Success) {
+                SearchTextFieldTopAppBar(
+                    searchWord = searchWord.value,
+                    onSearchWordChange = {searchWord.value = it},
+                    onBackClick = onBackIconClick
+                )
+            }
+        } ,
         content = {
             Column(
-                modifier = Modifier.windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical)
-                )
+                modifier = Modifier
+                    .padding(paddingValues = it)
             ) {
                 when (uiModel.state) {
                     is Error -> TODO()
                     is Success -> {
-                        SearchTextField(
-                            searchWord = searchWord.value,
-                            onSearchWordChange = { searchWord.value = it }
-                        ) {
-                            onBackIconClick()
-                        }
                         SearchFilter(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -214,37 +217,76 @@ private fun SearchScreen(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SearchTextFieldTopAppBar(
+    modifier: Modifier = Modifier,
+    backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+    searchWord: String,
+    onSearchWordChange: (String) -> Unit,
+    onBackClick: () -> Unit,
+) {
+    Column {
+        TopAppBar(
+            modifier = modifier,
+            navigationIcon = {
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_baseline_arrow_back_24),
+                        contentDescription = "back"
+                    )
+                }
+            },
+            title = {
+                SearchTextField(
+                    modifier = Modifier
+                        .background(color = backgroundColor),
+                    searchWord = searchWord,
+                    onSearchWordChange = onSearchWordChange,
+                )
+            },
+            colors = TopAppBarDefaults
+                .smallTopAppBarColors(containerColor = backgroundColor)
+        )
+        Divider(
+            thickness = 1.dp,
+            color = MaterialTheme.colorScheme.outline
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 private fun SearchTextField(
+    modifier: Modifier = Modifier,
     searchWord: String,
     onSearchWordChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    onBackClick: () -> Unit = {},
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
     }
+
+    BasicTextField(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .focusRequester(focusRequester),
+        singleLine = true,
+        value = searchWord,
+        onValueChange = onSearchWordChange
+    )
     TextField(
         value = searchWord,
         modifier = modifier
-            .fillMaxWidth(1.0f)
+            .fillMaxWidth()
             .height(64.dp)
-            .background(color = MaterialTheme.colorScheme.surfaceVariant)
             .focusRequester(focusRequester),
+        textStyle = MaterialTheme.typography.bodyLarge,
         placeholder = { Text(stringResource(Strings.search_placeholder)) },
         singleLine = true,
         keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
-        leadingIcon = {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_baseline_arrow_back_24),
-                contentDescription = "arrow_back_icon",
-                modifier = modifier
-                    .clickable { onBackClick() }
-            )
-        },
         trailingIcon = {
             IconButton(
                 onClick = { onSearchWordChange("") }
@@ -255,9 +297,12 @@ private fun SearchTextField(
                 )
             }
         },
-        onValueChange = {
-            onSearchWordChange(it)
-        },
+        onValueChange = onSearchWordChange,
+        colors = TextFieldDefaults.textFieldColors(
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent
+        )
     )
 }
 
